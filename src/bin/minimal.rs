@@ -9,7 +9,7 @@ mod app {
         gpio::{gpioa::PA0, gpioc::PC13, Edge, Input, Output, PullUp, PushPull},
         prelude::*,
     };
-
+    const SYSFREQ: u32 = 100_000_000;
     // Shared resources go here
     #[shared]
     struct Shared {}
@@ -26,6 +26,9 @@ mod app {
         defmt::info!("init");
         // syscfg
         let mut syscfg = ctx.device.SYSCFG.constrain();
+        // clocks
+        let rcc = ctx.device.RCC.constrain();
+        let clocks = rcc.cfgr.sysclk(SYSFREQ.hz()).use_hse(25.mhz()).freeze();
         // gpio ports A and C
         let gpioa = ctx.device.GPIOA.split();
         let gpioc = ctx.device.GPIOC.split();
@@ -58,7 +61,7 @@ mod app {
             continue;
         }
     }
-    
+
     #[task(binds = EXTI0, local = [button, led])]
     fn button_click(ctx: button_click::Context) {
         ctx.local.button.clear_interrupt_pending_bit();
