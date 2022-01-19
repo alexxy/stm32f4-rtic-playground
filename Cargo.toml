@@ -1,0 +1,59 @@
+[package]
+authors = ["Alexey Shvetsov"]
+name = "f411-rtic-playground"
+edition = "2021"
+version = "0.1.0"
+
+[dependencies]
+defmt = "0.3.0"
+defmt-rtt = "0.3.0"
+panic-probe = { version = "0.3.0", features = [ "print-defmt" ] }
+cortex-m = "0.7.1"
+cortex-m-rt = "0.7.1"
+cortex-m-rtic = "1"
+ssd1306 = "0.7.0"
+usb-device = "0.2.5"
+usbd-serial = "0.1.0"
+usbd-hid = "0.5.0"
+embedded-hal = "0.2.4"
+dwt-systick-monotonic = "1.0.0"
+rtic-monotonic = "1.0.0"
+stm32f4xx-hal = { version = "0.11.1", features = ["rt", "stm32f411", "usb_fs"] }
+
+# cargo build/run
+[profile.dev]
+codegen-units = 1
+debug = 2
+debug-assertions = true
+incremental = false
+opt-level = "s"
+overflow-checks = true
+
+# cargo test
+[profile.test]
+codegen-units = 1
+debug = 2
+debug-assertions = true
+incremental = false
+opt-level = "s"
+overflow-checks = true
+
+# cargo build/run --release
+[profile.release]
+codegen-units = 1
+debug = 2
+debug-assertions = false
+incremental = false
+lto = "fat"
+opt-level = "s"
+overflow-checks = false
+
+# cargo test --release
+[profile.bench]
+codegen-units = 1
+debug = 2
+debug-assertions = false
+incremental = false
+lto = "fat"
+opt-level = "s"
+overflow-checks = false 
