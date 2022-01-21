@@ -85,9 +85,16 @@ mod usart_shell {
             gpioa.pa9.into_alternate(),
             gpioa.pa10.into_alternate(),
             );
-        let mut serial = Serial::new(ctx.device.USART1, pins, Config::default().baudrate(115_200.bps()), &clocks).unwrap().with_u8_data();
+        let mut serial = Serial::new(ctx.device.USART1,
+                                     pins,
+                                     Config::default().
+                                         baudrate(115_200.bps()).
+                                         wordlength_8(),
+                                     &clocks)
+            .unwrap()
+            .with_u8_data();
         serial.listen(Rxne);
-        // yshell
+        // ushell
         let autocomplete = StaticAutocomplete(["clear", "help", "off", "on", "set ", "status"]);
         let history = LRUHistory::default();
         let shell = UShell::new(serial, autocomplete, history);
@@ -116,14 +123,16 @@ mod usart_shell {
         }
     }
     
-    #[task(binds = EXTI0, local = [button, led])]
+    #[task(binds = EXTI0, local = [button, led], shared = [led_enabled])]
     fn button_click(ctx: button_click::Context) {
+        defmt::info!("button");
         ctx.local.button.clear_interrupt_pending_bit();
         ctx.local.led.toggle();
     }
 
     #[task(binds = USART1, priority = 1, shared = [led_enabled], local = [shell])]
     fn usart1(ctx: usart1::Context) {
+        defmt::info!("usart");
         let usart1::LocalResources { shell } = ctx.local;
         loop {
             match shell.poll() {

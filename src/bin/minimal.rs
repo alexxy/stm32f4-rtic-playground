@@ -64,6 +64,7 @@ mod app {
 
     #[task(binds = EXTI0, local = [button, led])]
     fn button_click(ctx: button_click::Context) {
+        defmt::info!("button");
         ctx.local.button.clear_interrupt_pending_bit();
         ctx.local.led.toggle();
     }
