@@ -93,7 +93,7 @@ mod usart_shell {
         (
             Shared {
                 // Initialization of shared resources go here
-                led_enabled: false,
+                led_enabled: true,
             },
             Local {
                 // Initialization of local resources go here
@@ -115,12 +115,15 @@ mod usart_shell {
     }
 
     #[task(local = [led], shared = [led_enabled])]
-    fn led(mut ctx: led::Context) {
-        let led_on = ctx.shared.led_enabled.lock(|e| *e);
+    fn setled(ctx: setled::Context) {
+        defmt::info!("Led!");
+        let setled::LocalResources { led } = ctx.local;
+        let setled::SharedResources { mut led_enabled } = ctx.shared;
+        let led_on = led_enabled.lock(|e| *e);
         if led_on {
-            ctx.local.led.set_high();
+            led.set_low();
         } else {
-            ctx.local.led.set_low();
+            led.set_high();
         }
     }
 
@@ -131,10 +134,13 @@ mod usart_shell {
         let led_on = ctx.shared.led_enabled.lock(|e| *e);
         if led_on {
             ctx.shared.led_enabled.lock(|e| *e = false);
+            defmt::info!("Led set off!");
         } else {
             ctx.shared.led_enabled.lock(|e| *e = true);
+            defmt::info!("Led set on!");
         }
-        led::spawn().unwrap();
+        setled::spawn().unwrap();
+        defmt::info!("Led change spawned!");
     }
 
     #[task(binds = USART1, priority = 1, shared = [led_enabled], local = [shell])]
@@ -154,12 +160,16 @@ mod usart_shell {
                         }
                         "on" => {
                             led_enabled.lock(|e| *e = true);
-                            led::spawn().unwrap();
+                            defmt::info!("Led set on!");
+                            setled::spawn().unwrap();
+                            defmt::info!("led change spawned");
                             shell.write_str(CR).ok();
                         }
                         "off" => {
                             led_enabled.lock(|e| *e = false);
-                            led::spawn().unwrap();
+                            defmt::info!("Led set off!");
+                            setled::spawn().unwrap();
+                            defmt::info!("led change spawned");
                             shell.write_str(CR).ok();
                         }
                         "status" => {
