@@ -3,29 +3,23 @@
 
 use f411_rtic_playground as _; // global logger + panicking-behavior + memory layout
 
-#[rtic::app(device = stm32f4xx_hal::pac, peripherals = true)]
+#[rtic::app(device = stm32f4xx_hal::pac, peripherals = true, dispatchers = [SDIO])]
 mod usart_shell {
-    use core::task::Context;
-    use core::fmt::Write;
+    use core::{fmt::Write, task::Context};
     use dwt_systick_monotonic::{DwtSystick, ExtU32};
     use stm32f4xx_hal::{
-        gpio::{gpioa::PA0, gpioa::PA9, gpioa::PA10, gpioc::PC13, Alternate, Edge, Input, Output, PullUp, PushPull},
-        serial::{
-            config::Config,
-            Event::Rxne,
-            Serial
+        gpio::{
+            gpioa::PA0, gpioa::PA10, gpioa::PA9, gpioc::PC13, Alternate, Edge, Input, Output,
+            PullUp, PushPull,
         },
         pac::USART1,
         prelude::*,
+        serial::{config::Config, Event::Rxne, Serial},
     };
 
     use ushell::{
-        autocomplete::StaticAutocomplete,
-        control as ushell_control,
-        history::LRUHistory,
-        Input as ushell_input,
-        ShellError as ushell_error,
-        UShell,
+        autocomplete::StaticAutocomplete, control as ushell_control, history::LRUHistory,
+        Input as ushell_input, ShellError as ushell_error, UShell,
     };
 
     type LedType = PC13<Output<PushPull>>;
@@ -81,18 +75,15 @@ mod usart_shell {
         // led
         let led = gpioc.pc13.into_push_pull_output();
         // serial
-        let pins = (
-            gpioa.pa9.into_alternate(),
-            gpioa.pa10.into_alternate(),
-            );
-        let mut serial = Serial::new(ctx.device.USART1,
-                                     pins,
-                                     Config::default().
-                                         baudrate(115_200.bps()).
-                                         wordlength_8(),
-                                     &clocks)
-            .unwrap()
-            .with_u8_data();
+        let pins = (gpioa.pa9.into_alternate(), gpioa.pa10.into_alternate());
+        let mut serial = Serial::new(
+            ctx.device.USART1,
+            pins,
+            Config::default().baudrate(115_200.bps()).wordlength_8(),
+            &clocks,
+        )
+        .unwrap()
+        .with_u8_data();
         serial.listen(Rxne);
         // ushell
         let autocomplete = StaticAutocomplete(["clear", "help", "off", "on", "set ", "status"]);
@@ -101,14 +92,14 @@ mod usart_shell {
 
         (
             Shared {
-               // Initialization of shared resources go here
-               led_enabled: false,
+                // Initialization of shared resources go here
+                led_enabled: false,
             },
             Local {
                 // Initialization of local resources go here
                 button,
                 led,
-                shell
+                shell,
             },
             init::Monotonics(mono),
         )
@@ -122,18 +113,35 @@ mod usart_shell {
             continue;
         }
     }
-    
-    #[task(binds = EXTI0, local = [button, led], shared = [led_enabled])]
-    fn button_click(ctx: button_click::Context) {
+
+    #[task(local = [led], shared = [led_enabled])]
+    fn led(mut ctx: led::Context) {
+        let led_on = ctx.shared.led_enabled.lock(|e| *e);
+        if led_on {
+            ctx.local.led.set_high();
+        } else {
+            ctx.local.led.set_low();
+        }
+    }
+
+    #[task(binds = EXTI0, local = [button], shared = [led_enabled])]
+    fn button_click(mut ctx: button_click::Context) {
         defmt::info!("button");
         ctx.local.button.clear_interrupt_pending_bit();
-        ctx.local.led.toggle();
+        let led_on = ctx.shared.led_enabled.lock(|e| *e);
+        if led_on {
+            ctx.shared.led_enabled.lock(|e| *e = false);
+        } else {
+            ctx.shared.led_enabled.lock(|e| *e = true);
+        }
+        led::spawn().unwrap();
     }
 
     #[task(binds = USART1, priority = 1, shared = [led_enabled], local = [shell])]
     fn usart1(ctx: usart1::Context) {
         defmt::info!("usart");
         let usart1::LocalResources { shell } = ctx.local;
+        let usart1::SharedResources { mut led_enabled } = ctx.shared;
         loop {
             match shell.poll() {
                 Ok(Some(ushell_input::Command((cmd, args)))) => {
@@ -144,36 +152,21 @@ mod usart_shell {
                         "clear" => {
                             shell.clear().ok();
                         }
-/*                        "on" => {
-                            blink_enabled.lock(|e| *e = true);
+                        "on" => {
+                            led_enabled.lock(|e| *e = true);
+                            led::spawn().unwrap();
                             shell.write_str(CR).ok();
                         }
                         "off" => {
-                            blink_enabled.lock(|e| *e = false);
+                            led_enabled.lock(|e| *e = false);
+                            led::spawn().unwrap();
                             shell.write_str(CR).ok();
                         }
                         "status" => {
-                            let on = blink_enabled.lock(|e| *e);
+                            let on = led_enabled.lock(|e| *e);
                             let status = if on { "On" } else { "Off" };
-                            write!(
-                                shell,
-                                "{0:}Animation: {1:}{0:}Frequency: {2:}Hz{0:}",
-                                CR, status, blink_freq
-                            )
-                            .ok();
+                            write!(shell, "{0:}LED: {1:}{0:}", CR, status).ok();
                         }
-                        "set" => match btoi::btoi(args.as_bytes()) {
-                            Ok(freq) if freq > 0 && freq <= 100 => {
-                                *blink_freq = freq;
-                                blink_timer.lock(|t| {
-                                    t.start((freq as u32 * 2).hz());
-                                });
-                                shell.write_str(CR).ok();
-                            }
-                            _ => {
-                                write!(shell, "{0:}unsupported frequency{0:}", CR).ok();
-                            }
-                        },*/
                         "" => {
                             shell.write_str(CR).ok();
                         }

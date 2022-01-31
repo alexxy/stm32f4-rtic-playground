@@ -47,7 +47,7 @@ mod app {
             Local {
                 // Initialization of local resources go here
                 button,
-                led
+                led,
             },
             init::Monotonics(),
         )
