@@ -5,8 +5,8 @@ use f411_rtic_playground as _; // global logger + panicking-behavior + memory la
 
 #[rtic::app(device = stm32f4xx_hal::pac, peripherals = true, dispatchers = [SDIO])]
 mod usart_shell {
-    use core::{fmt::Write, task::Context};
-    use dwt_systick_monotonic::{DwtSystick, ExtU32};
+    use core::fmt::Write;
+    use dwt_systick_monotonic::DwtSystick;
     use stm32f4xx_hal::{
         gpio::{
             gpioa::PA0, gpioa::PA10, gpioa::PA9, gpioc::PC13, Alternate, Edge, Input, Output,
@@ -18,8 +18,8 @@ mod usart_shell {
     };
 
     use ushell::{
-        autocomplete::StaticAutocomplete, control as ushell_control, history::LRUHistory,
-        Input as ushell_input, ShellError as ushell_error, UShell,
+        autocomplete::StaticAutocomplete, history::LRUHistory, Input as ushell_input,
+        ShellError as ushell_error, UShell,
     };
 
     type LedType = PC13<Output<PushPull>>;
@@ -150,7 +150,7 @@ mod usart_shell {
         let usart1::SharedResources { mut led_enabled } = ctx.shared;
         loop {
             match shell.poll() {
-                Ok(Some(ushell_input::Command((cmd, args)))) => {
+                Ok(Some(ushell_input::Command((cmd, _args)))) => {
                     match cmd {
                         "help" => {
                             shell.write_str(HELP).ok();

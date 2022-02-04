@@ -28,7 +28,7 @@ mod app {
         let mut syscfg = ctx.device.SYSCFG.constrain();
         // clocks
         let rcc = ctx.device.RCC.constrain();
-        let clocks = rcc.cfgr.sysclk(SYSFREQ.hz()).use_hse(25.mhz()).freeze();
+        let _clocks = rcc.cfgr.sysclk(SYSFREQ.hz()).use_hse(25.mhz()).freeze();
         // gpio ports A and C
         let gpioa = ctx.device.GPIOA.split();
         let gpioc = ctx.device.GPIOC.split();
