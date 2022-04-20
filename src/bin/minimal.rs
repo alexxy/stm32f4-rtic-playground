@@ -6,7 +6,7 @@ use f411_rtic_playground as _; // global logger + panicking-behavior + memory la
 #[rtic::app(device = stm32f4xx_hal::pac, peripherals = true)]
 mod app {
     use stm32f4xx_hal::{
-        gpio::{gpioa::PA0, gpioc::PC13, Edge, Input, Output, PullUp, PushPull},
+        gpio::{gpioa::PA0, gpioc::PC13, Edge, Input, Output, PushPull},
         prelude::*,
     };
     const SYSFREQ: u32 = 100_000_000;
@@ -17,7 +17,7 @@ mod app {
     // Local resources go here
     #[local]
     struct Local {
-        button: PA0<Input<PullUp>>,
+        button: PA0<Input>,
         led: PC13<Output<PushPull>>,
     }
 
@@ -28,7 +28,7 @@ mod app {
         let mut syscfg = ctx.device.SYSCFG.constrain();
         // clocks
         let rcc = ctx.device.RCC.constrain();
-        let _clocks = rcc.cfgr.sysclk(SYSFREQ.hz()).use_hse(25.mhz()).freeze();
+        let _clocks = rcc.cfgr.sysclk(SYSFREQ.Hz()).use_hse(25.MHz()).freeze();
         // gpio ports A and C
         let gpioa = ctx.device.GPIOA.split();
         let gpioc = ctx.device.GPIOC.split();

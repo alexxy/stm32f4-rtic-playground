@@ -4,7 +4,7 @@
 use f411_rtic_playground as _; // global logger + panicking-behavior + memory layout
 
 #[rtic::app(device = stm32f4xx_hal::pac, peripherals = true, dispatchers = [SDIO])]
-mod usart_shell {
+mod usart_shell_bme280 {
     use core::fmt::Write;
     use dwt_systick_monotonic::DwtSystick;
     use stm32f4xx_hal::{
@@ -24,7 +24,6 @@ mod usart_shell {
 
     type LedType = PC13<Output<PushPull>>;
     type ButtonType = PA0<Input>;
-    //type SerialType = Serial<USART1, (PA9<Alternate<PushPull, 7>>, PA10<Alternate<PushPull, 7>>)>;
     type SerialType = Serial<USART1, (PA9<Alternate<7>>, PA10<Alternate<7>>)>;
     type ShellType = UShell<SerialType, StaticAutocomplete<5>, LRUHistory<32, 4>, 32>;
 
