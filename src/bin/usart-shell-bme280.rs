@@ -30,7 +30,7 @@ mod usart_shell_bme280 {
     const SHELL_PROMPT: &str = "#> ";
     const CR: &str = "\r\n";
     const HELP: &str = "\r\n\
-        help: !
+        help: we need some help
         ";
     const SYSFREQ: u32 = 100_000_000;
     #[monotonic(binds = SysTick, default = true)]
@@ -145,7 +145,6 @@ mod usart_shell_bme280 {
 
     #[task(binds = USART1, priority = 1, shared = [led_enabled], local = [shell])]
     fn usart1(ctx: usart1::Context) {
-        defmt::info!("usart");
         let usart1::LocalResources { shell } = ctx.local;
         let usart1::SharedResources { mut led_enabled } = ctx.shared;
         loop {
