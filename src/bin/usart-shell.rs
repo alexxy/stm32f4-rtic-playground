@@ -59,12 +59,7 @@ mod usart_shell {
         let rcc = ctx.device.RCC.constrain();
         let clocks = rcc.cfgr.sysclk(SYSFREQ.Hz()).use_hse(25.MHz()).freeze();
         // monotonic timer
-        let mono = DwtSystick::new(
-            &mut ctx.core.DCB,
-            ctx.core.DWT,
-            ctx.core.SYST,
-            SYSFREQ,
-        );
+        let mono = DwtSystick::new(&mut ctx.core.DCB, ctx.core.DWT, ctx.core.SYST, SYSFREQ);
         // gpio ports A and C
         let gpioa = ctx.device.GPIOA.split();
         let gpioc = ctx.device.GPIOC.split();

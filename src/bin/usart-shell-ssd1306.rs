@@ -4,17 +4,31 @@
 use f411_rtic_playground as _; // global logger + panicking-behavior + memory layout
 
 #[rtic::app(device = stm32f4xx_hal::pac, peripherals = true, dispatchers = [SDIO])]
-mod usart_shell_bme280 {
+mod usart_shell {
     use core::fmt::Write;
     use dwt_systick_monotonic::DwtSystick;
+    use embedded_graphics::{
+        mono_font::{ascii::FONT_5X8, MonoTextStyleBuilder},
+        pixelcolor::BinaryColor,
+        prelude::*,
+        text::Baseline,
+        text::Text,
+    };
+    use heapless::String;
+
+    use ssd1306::{mode::BufferedGraphicsMode, prelude::*, I2CDisplayInterface, Ssd1306};
+
     use stm32f4xx_hal::{
         gpio::{
-            gpioa::PA0, gpioa::PA10, gpioa::PA9, gpioc::PC13, Alternate, Edge, Input, Output,
-            PushPull,
+            gpioa::PA0, gpioa::PA10, gpioa::PA9, gpiob::PB8, gpiob::PB9, gpioc::PC13, Alternate,
+            Edge, Input, OpenDrain, Output, PushPull,
         },
+        i2c::I2c,
+        pac::I2C1,
         pac::USART1,
         prelude::*,
         serial::{config::Config, Event::Rxne, Serial},
+        timer::Event,
     };
 
     use ushell::{
@@ -24,21 +38,45 @@ mod usart_shell_bme280 {
 
     type LedType = PC13<Output<PushPull>>;
     type ButtonType = PA0<Input>;
-    type SerialType = Serial<USART1, (PA9<Alternate<7>>, PA10<Alternate<7>>)>;
-    type ShellType = UShell<SerialType, StaticAutocomplete<5>, LRUHistory<32, 4>, 32>;
+    type ShellType = UShell<
+        Serial<USART1, (PA9<Alternate<7>>, PA10<Alternate<7>>)>,
+        StaticAutocomplete<5>,
+        LRUHistory<32, 4>,
+        32,
+    >;
+    type DisplayType = Ssd1306<
+        I2CInterface<I2c<I2C1, (PB8<Alternate<4, OpenDrain>>, PB9<Alternate<4, OpenDrain>>)>>,
+        DisplaySize128x64,
+        BufferedGraphicsMode<DisplaySize128x64>,
+    >;
 
     const SHELL_PROMPT: &str = "#> ";
     const CR: &str = "\r\n";
     const HELP: &str = "\r\n\
-        help: we need some help
+        help: !
         ";
     const SYSFREQ: u32 = 100_000_000;
+    const SCREEN_WIDTH: i32 = 128;
+    const SCREEN_HEIGHT: i32 = 64;
+    const FONT_HEIGHT: i32 = 8;
+    /// height of embedded font, in pixels
+    const VCENTER_PIX: i32 = (SCREEN_HEIGHT - FONT_HEIGHT) / 2;
+    const HINSET_PIX: i32 = 20;
+    const FPS: u32 = 25;
+
+    #[derive(Clone, Copy)]
+    pub struct DisplayInfo {
+        led_status: bool,
+        update_hz: u32,
+    }
+
     #[monotonic(binds = SysTick, default = true)]
     type Mono = DwtSystick<SYSFREQ>;
     // Shared resources go here
     #[shared]
     struct Shared {
         led_enabled: bool,
+        display_state: DisplayInfo,
     }
 
     // Local resources go here
@@ -47,6 +85,7 @@ mod usart_shell_bme280 {
         button: ButtonType,
         led: LedType,
         shell: ShellType,
+        ldisp: DisplayType,
     }
 
     #[init]
@@ -61,6 +100,7 @@ mod usart_shell_bme280 {
         let mono = DwtSystick::new(&mut ctx.core.DCB, ctx.core.DWT, ctx.core.SYST, SYSFREQ);
         // gpio ports A and C
         let gpioa = ctx.device.GPIOA.split();
+        let gpiob = ctx.device.GPIOB.split();
         let gpioc = ctx.device.GPIOC.split();
         // button
         let mut button = gpioa.pa0.into_pull_up_input();
@@ -69,6 +109,10 @@ mod usart_shell_bme280 {
         button.trigger_on_edge(&mut ctx.device.EXTI, Edge::Falling);
         // led
         let led = gpioc.pc13.into_push_pull_output();
+        // i2c
+        let scl = gpiob.pb8.into_alternate().set_open_drain();
+        let sda = gpiob.pb9.into_alternate().set_open_drain();
+        let i2c = I2c::new(ctx.device.I2C1, (scl, sda), 400.kHz(), &clocks);
         // serial
         let pins = (gpioa.pa9.into_alternate(), gpioa.pa10.into_alternate());
         let mut serial = Serial::new(
@@ -84,17 +128,34 @@ mod usart_shell_bme280 {
         let autocomplete = StaticAutocomplete(["clear", "help", "off", "on", "status"]);
         let history = LRUHistory::default();
         let shell = UShell::new(serial, autocomplete, history);
+        // display
+        let interface = I2CDisplayInterface::new(i2c);
+        let mut ldisp = Ssd1306::new(interface, DisplaySize128x64, DisplayRotation::Rotate0)
+            .into_buffered_graphics_mode();
+        ldisp.init().unwrap();
+
+        let mut timer = ctx.device.TIM2.counter_hz(&clocks);
+        //let mut timer = FTimer::new(ctx.device.TIM1, &clocks).counter_hz();
+        timer.start(FPS.Hz()).unwrap();
+        timer.listen(Event::Update);
 
         (
             Shared {
                 // Initialization of shared resources go here
                 led_enabled: true,
+                display_state: {
+                    DisplayInfo {
+                        led_status: true,
+                        update_hz: FPS,
+                    }
+                },
             },
             Local {
                 // Initialization of local resources go here
                 button,
                 led,
                 shell,
+                ldisp,
             },
             init::Monotonics(mono),
         )
@@ -109,17 +170,56 @@ mod usart_shell_bme280 {
         }
     }
 
-    #[task(local = [led], shared = [led_enabled])]
+    #[task(local = [led], shared = [led_enabled, display_state])]
     fn setled(ctx: setled::Context) {
         defmt::info!("Led!");
         let setled::LocalResources { led } = ctx.local;
-        let setled::SharedResources { mut led_enabled } = ctx.shared;
+        let setled::SharedResources {
+            mut led_enabled,
+            mut display_state,
+        } = ctx.shared;
         let led_on = led_enabled.lock(|e| *e);
         if led_on {
             led.set_low();
+            display_state.lock(|ds| ds.led_status = true);
         } else {
             led.set_high();
+            display_state.lock(|ds| ds.led_status = false);
         }
+    }
+
+    #[task(binds = TIM2, local = [ldisp], shared = [display_state])]
+    fn updateDisplay(ctx: updateDisplay::Context) {
+        let updateDisplay::LocalResources { ldisp } = ctx.local;
+        let updateDisplay::SharedResources { mut display_state } = ctx.shared;
+        let ds = display_state.lock(|e| *e);
+        defmt::info!("Display update");
+        let text_style = MonoTextStyleBuilder::new()
+            .font(&FONT_5X8)
+            .text_color(BinaryColor::On)
+            .build();
+        let mut fpsstr: String<10> = String::new();
+        write!(fpsstr, "FPS: {}", ds.update_hz).unwrap();
+        let mut ledstr: String<10> = String::new();
+        if (ds.led_status) {
+            write!(ledstr, "LED is ON");
+        } else {
+            write!(ledstr, "LED is OFF");
+        }
+        ldisp.clear();
+        Text::with_baseline(fpsstr.as_str(), Point::zero(), text_style, Baseline::Top)
+            .draw(ldisp)
+            .unwrap();
+
+        Text::with_baseline(
+            ledstr.as_str(),
+            Point::new(0, 16),
+            text_style,
+            Baseline::Top,
+        )
+        .draw(ldisp)
+        .unwrap();
+        ldisp.flush().unwrap();
     }
 
     #[task(binds = EXTI0, local = [button], shared = [led_enabled])]
@@ -139,9 +239,10 @@ mod usart_shell_bme280 {
     }
 
     #[task(binds = USART1, priority = 1, shared = [led_enabled], local = [shell])]
-    fn usart1(ctx: usart1::Context) {
-        let usart1::LocalResources { shell } = ctx.local;
-        let usart1::SharedResources { mut led_enabled } = ctx.shared;
+    fn serialshell(ctx: serialshell::Context) {
+        defmt::info!("usart");
+        let serialshell::LocalResources { shell } = ctx.local;
+        let serialshell::SharedResources { mut led_enabled } = ctx.shared;
         loop {
             match shell.poll() {
                 Ok(Some(ushell_input::Command((cmd, _args)))) => {
