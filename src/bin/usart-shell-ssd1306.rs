@@ -56,12 +56,6 @@ mod usart_shell {
         help: !
         ";
     const SYSFREQ: u32 = 100_000_000;
-    const SCREEN_WIDTH: i32 = 128;
-    const SCREEN_HEIGHT: i32 = 64;
-    const FONT_HEIGHT: i32 = 8;
-    /// height of embedded font, in pixels
-    const VCENTER_PIX: i32 = (SCREEN_HEIGHT - FONT_HEIGHT) / 2;
-    const HINSET_PIX: i32 = 20;
     const FPS: u32 = 25;
 
     #[derive(Clone, Copy)]
@@ -189,9 +183,9 @@ mod usart_shell {
     }
 
     #[task(binds = TIM2, local = [ldisp], shared = [display_state])]
-    fn updateDisplay(ctx: updateDisplay::Context) {
-        let updateDisplay::LocalResources { ldisp } = ctx.local;
-        let updateDisplay::SharedResources { mut display_state } = ctx.shared;
+    fn updatedisplay(ctx: updatedisplay::Context) {
+        let updatedisplay::LocalResources { ldisp } = ctx.local;
+        let updatedisplay::SharedResources { mut display_state } = ctx.shared;
         let ds = display_state.lock(|e| *e);
         defmt::info!("Display update");
         let text_style = MonoTextStyleBuilder::new()
@@ -201,10 +195,10 @@ mod usart_shell {
         let mut fpsstr: String<10> = String::new();
         write!(fpsstr, "FPS: {}", ds.update_hz).unwrap();
         let mut ledstr: String<10> = String::new();
-        if (ds.led_status) {
-            write!(ledstr, "LED is ON");
+        if ds.led_status {
+            write!(ledstr, "LED is ON").unwrap();
         } else {
-            write!(ledstr, "LED is OFF");
+            write!(ledstr, "LED is OFF").unwrap();
         }
         ldisp.clear();
         Text::with_baseline(fpsstr.as_str(), Point::zero(), text_style, Baseline::Top)

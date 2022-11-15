@@ -24,9 +24,12 @@ mod usart_shell {
 
     type LedType = PC13<Output<PushPull>>;
     type ButtonType = PA0<Input>;
-    //type SerialType = Serial<USART1, (PA9<Alternate<PushPull, 7>>, PA10<Alternate<PushPull, 7>>)>;
-    type SerialType = Serial<USART1, (PA9<Alternate<7>>, PA10<Alternate<7>>)>;
-    type ShellType = UShell<SerialType, StaticAutocomplete<5>, LRUHistory<32, 4>, 32>;
+    type ShellType = UShell<
+        Serial<USART1, (PA9<Alternate<7>>, PA10<Alternate<7>>)>,
+        StaticAutocomplete<5>,
+        LRUHistory<32, 4>,
+        32,
+    >;
 
     const SHELL_PROMPT: &str = "#> ";
     const CR: &str = "\r\n";
@@ -140,10 +143,10 @@ mod usart_shell {
     }
 
     #[task(binds = USART1, priority = 1, shared = [led_enabled], local = [shell])]
-    fn usart1(ctx: usart1::Context) {
+    fn usartshell(ctx: usartshell::Context) {
         defmt::info!("usart");
-        let usart1::LocalResources { shell } = ctx.local;
-        let usart1::SharedResources { mut led_enabled } = ctx.shared;
+        let usartshell::LocalResources { shell } = ctx.local;
+        let usartshell::SharedResources { mut led_enabled } = ctx.shared;
         loop {
             match shell.poll() {
                 Ok(Some(ushell_input::Command((cmd, _args)))) => {
