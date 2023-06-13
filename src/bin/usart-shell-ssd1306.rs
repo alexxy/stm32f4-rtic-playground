@@ -19,10 +19,7 @@ mod usart_shell {
     use ssd1306::{mode::BufferedGraphicsMode, prelude::*, I2CDisplayInterface, Ssd1306};
 
     use stm32f4xx_hal::{
-        gpio::{
-            gpioa::PA0, gpioa::PA10, gpioa::PA9, gpiob::PB8, gpiob::PB9, gpioc::PC13, Alternate,
-            Edge, Input, OpenDrain, Output, PushPull,
-        },
+        gpio::{gpioa::PA0, gpioc::PC13, Edge, Input, Output, PushPull},
         i2c::I2c,
         pac::I2C1,
         pac::USART1,
@@ -38,14 +35,9 @@ mod usart_shell {
 
     type LedType = PC13<Output<PushPull>>;
     type ButtonType = PA0<Input>;
-    type ShellType = UShell<
-        Serial<USART1, (PA9<Alternate<7>>, PA10<Alternate<7>>)>,
-        StaticAutocomplete<5>,
-        LRUHistory<32, 4>,
-        32,
-    >;
+    type ShellType = UShell<Serial<USART1>, StaticAutocomplete<5>, LRUHistory<32, 4>, 32>;
     type DisplayType = Ssd1306<
-        I2CInterface<I2c<I2C1, (PB8<Alternate<4, OpenDrain>>, PB9<Alternate<4, OpenDrain>>)>>,
+        I2CInterface<I2c<I2C1>>,
         DisplaySize128x64,
         BufferedGraphicsMode<DisplaySize128x64>,
     >;
@@ -104,11 +96,11 @@ mod usart_shell {
         // led
         let led = gpioc.pc13.into_push_pull_output();
         // i2c
-        let scl = gpiob.pb8.into_alternate().set_open_drain();
-        let sda = gpiob.pb9.into_alternate().set_open_drain();
+        let scl = gpiob.pb8;
+        let sda = gpiob.pb9;
         let i2c = I2c::new(ctx.device.I2C1, (scl, sda), 400.kHz(), &clocks);
         // serial
-        let pins = (gpioa.pa9.into_alternate(), gpioa.pa10.into_alternate());
+        let pins = (gpioa.pa9, gpioa.pa10);
         let mut serial = Serial::new(
             ctx.device.USART1,
             pins,
@@ -200,7 +192,7 @@ mod usart_shell {
         } else {
             write!(ledstr, "LED is OFF").unwrap();
         }
-        ldisp.clear();
+        let _ = ldisp.clear(BinaryColor::Off);
         Text::with_baseline(fpsstr.as_str(), Point::zero(), text_style, Baseline::Top)
             .draw(ldisp)
             .unwrap();
