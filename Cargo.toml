@@ -18,8 +18,8 @@ usbd-hid = "0.6.1"
 embedded-hal = "<1.0"
 dwt-systick-monotonic = "1.1.0"
 rtic-monotonic = "1.0.0"
-stm32f4xx-hal = { version = "0.16", features = ["rt", "stm32f411", "usb_fs", "rtic", "defmt"] }
-ushell = "0.3.5"
+stm32f4xx-hal = { version = "0.16.2", features = ["rt", "stm32f411", "usb_fs", "rtic", "defmt"] }
+ushell = "0.3.6"
 shared-bus-rtic = "0.2.2"
 embedded-graphics = "0.8.0"
 heapless = "0.7.16"
