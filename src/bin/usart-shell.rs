@@ -1,7 +1,7 @@
 #![no_main]
 #![no_std]
 
-use f411_rtic_playground as _; // global logger + panicking-behavior + memory layout
+use stm32f4_rtic_playground as _; // global logger + panicking-behavior + memory layout
 
 #[rtic::app(device = stm32f4xx_hal::pac, peripherals = true, dispatchers = [SDIO])]
 mod usart_shell {
@@ -11,7 +11,7 @@ mod usart_shell {
         gpio::{gpioa::PA0, gpioc::PC13, Edge, Input, Output, PushPull},
         pac::USART1,
         prelude::*,
-        serial::{config::Config, Event::Rxne, Serial},
+        serial::{config::Config, Event::RxNotEmpty, Serial},
     };
 
     use ushell::{
@@ -75,7 +75,7 @@ mod usart_shell {
         )
         .unwrap()
         .with_u8_data();
-        serial.listen(Rxne);
+        serial.listen(RxNotEmpty);
         // ushell
         let autocomplete = StaticAutocomplete(["clear", "help", "off", "on", "status"]);
         let history = LRUHistory::default();

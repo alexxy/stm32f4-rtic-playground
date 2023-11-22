@@ -1,7 +1,7 @@
 #![no_main]
 #![no_std]
 
-use f411_rtic_playground as _; // global logger + panicking-behavior + memory layout
+use stm32f4_rtic_playground as _; // global logger + panicking-behavior + memory layout
 
 #[rtic::app(device = stm32f4xx_hal::pac, peripherals = true)]
 mod app {
